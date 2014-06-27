@@ -1,4 +1,4 @@
-TexCiteJS
+TexCite
 =========
 
-A library to parse bibtex... 
+TexCiteJS: A library to parse bibtex... 
