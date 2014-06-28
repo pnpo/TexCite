@@ -1,6 +1,6 @@
 //SEE RetinaJS for guidance...
 
-;(function(exports, undefined) {
+;(function(exporting, undefined) {
 	
 	var options = {};
 	
@@ -9,7 +9,7 @@
 	* Constructor
 	*/
 	function TexCite() {}
-	exports.TexCite = TexCite; //export constructor
+	exporting.TexCite = TexCite; //export constructor
 
 	
 	/*********** PUBLIC API **************/
@@ -22,8 +22,7 @@
 		*/
 		parse : function(content) {
 			var tokens = _lexify(content);
-			console.log(tokens);
-			//var new_tkns = Array.from(tokens);
+			//console.log(tokens);
 			try{
 					var res = _bibtex( { "tokens": tokens, "out":{} });
 			}
@@ -326,11 +325,88 @@
 		return followset.indexOf(tkn.type) != -1 ;
 	}
 	
-	
-	
-	
-	
+
 })(window); //pass the window as the global context...
+
+
+
+
+
+
+;(function(exporting, undefined){
+	
+	function BibtexDB() {
+		this.entry = "";			//The type of the entry
+		this.id = "";			//The key of the 
+		this.author = [];		//The name(s) of the author(s) (in the case of more than one author, separated by and)
+		this.title = "";			//The title of the work
+		this.address = ""; 		//Publisher's address (usually just the city, but can be the full address for lesser-known publishers)
+		this.annote = ""; 		//An annotation for annotated bibliography styles (not typical)
+		this.booktitle = "";		//The title of the book, if only part of it is being cited	
+		this.chapter = "";		//The chapter number
+		this.crossref = "";		//The key of the cross-referenced entry
+		this.edition = "";		//The edition of a book, long form (such as "First" or "Second")
+		this.editor = []; 		//The name(s) of the editor(s)
+		this.eprint = ""; 		//A specification of an electronic publication, often a preprint or a technical report
+		this.howpublished = "";	//How it was published, if the publishing method is nonstandard
+		this.institution = ""; 	//The institution that was involved in the publishing, but not necessarily the publisher
+		this.journal = ""; 		//The journal or magazine the work was published in
+		this.key = "";			//A hidden field used for specifying or overriding the alphabetical order of entries.
+		this.month = "";		 	//The month of publication (or, if unpublished, the month of creation)
+		this.note = "";	 		//Miscellaneous extra information
+		this.number = ""; 		//The "(issue) number" of a journal, magazine, or tech-report, if applicable.
+		this.organization = ""	//The conference sponsor
+		this.pages = "";	 		//Page numbers, separated either by commas or double-hyphens.
+		this.publisher = "";		//The publisher's name
+		this.school = ""; 		//The school where the thesis was written
+		this.series = ""; 		//The series of books the book was published in
+		this.type = ""; 			//The field overriding the default type of publication
+		this.url = "";		 	//The WWW address
+		this.volume = ""; 		//The volume of a journal or multi-volume book
+		this.year = "";			//The year of publication (or, if unpublished, the year of creation)
+		
+		//other not in wikipedia but several times used
+		this.isbn = "";			//International standard book number - a 10 or 13 digits number separated into 4 or 5 groups by - or space
+		this.issn = "";			//International standard serial number - is the identifier for publications in series
+		this.doi = "";			//Digital object identifier - an identifier with 2 parts Suffix/Prefix (Prefix is either the ISSN or ISBN)
+		this.keywords = [];		//Set of keywords
+		this._other = {};
+	}
+	
+	exporting.BibtexDB = BibtexDB; //export constructor
+	
+	
+	/******* PUBLIC API **********/
+	
+	BibtexDB.fn = BibtexDB.prototype = {
+		/*
+		Get a field's value matching the given key
+		@param {string} key: the key name of the field to retrive the value
+		@returns {object} a string witht the value 
+		*/
+		other : function(key) {
+			var _key = key.toLowerCase();
+			return (this._other.hasOwnProperty(_key)) ? this._other[_key] : "" ; 
+		}
+	}
+	
+})(window);
+
+
+
+
+/*
+var B = new BibtexDB();
+//B._other = {com:"ola", sem:"alo"};
+B._other["com"	] = "ola";
+console.log(B.other("com"));
+console.log(B);
+
+var C = new BibtexDB();
+console.log(C);
+*/
+
+
 
 var T = new TexCite();
 console.log(T.parse(
