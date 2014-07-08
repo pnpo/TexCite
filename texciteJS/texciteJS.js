@@ -1,5 +1,3 @@
-//SEE RetinaJS for guidance...
-
 ;(function(exporting, undefined) {
 	
 	var options = {};
@@ -9,7 +7,7 @@
 	* Constructor
 	*/
 	function TexCite() {
-		this.db = new TexCiteDB();
+		this.db = new TexCiteDB() ;		
 	}
 	exporting.TexCite = TexCite; //export constructor
 
@@ -26,15 +24,13 @@
 			var tokens = _lexify(content);
 			//console.log(tokens);
 			try{
-					var res = _bibtex( { "tokens": tokens, "out":{} });
+					var res = _bibtex( { db:this.db, "tokens": tokens, "in": {}, "out": {} });
+					this.db = res.db;
+					return tokens.length==0 ? "SUCCESS" : "FAIL see logs";
 			}
 			catch(ex){
 				console.log(ex);
 			}
-			finally{
-				return tokens.length==0 ? "SUCCESS" : "FAIL see logs";
-			}
-			
 		}
 	}
 	
@@ -52,7 +48,7 @@
 		NAME	: /^[^=@$&!?,;\s\"#%'(){}]+/i,
 		LBRACE	: /^\{/,
 		RBRACE	: /^\}/,
-		SEMI	: /^,/,
+		COMMA	: /^,/,
 		EQUAL	: /^=/,
 		AT		: /^@/,
 		STRING	: /^"[^"]*"/,
@@ -124,7 +120,10 @@
 	function RecognitionException(tkn,valid) {
 	   this.message = "Error (" + tkn.line+ ":" + tkn.pos + ") >> expecting " + 
 	   					valid.join(" or ") + " but found " + tkn.type + " (" + tkn.value + ")";
-	   this.name = "RecognitionException";
+	}
+	
+	function AttributeUndefinedException(call, attribute) {
+		this.message = "Error (DEV) >> expecting attribute " + attribute + " in " + call; 
 	}
 	
 	/*
@@ -144,6 +143,8 @@
 	
 	function _entry(input) {
 		var r = input;
+		r.in = {};
+		r.out = {};
 		if(_isMatch(r.tokens[0], ["AT"])){
 			
 			r.tokens.shift();
@@ -187,6 +188,7 @@
 		var r = input;
 		if(_isMatch(r.tokens[0],["LBRACE"])){
 			r.tokens.shift();
+			r.in = {caller:"string", id:"$"}; //set the caller attribute
 			r = _fields(r);
 			if(_isMatch(r.tokens[0], ["RBRACE"])){
 				r.tokens.shift();
@@ -224,11 +226,15 @@
 			r.tokens.shift();
 			if(_isMatch(r.tokens[0], ["LBRACE"])){
 				r.tokens.shift();
-				if(_isMatch(r.tokens[0], ["NAME"])){
-					r.tokens.shift();
-					if(_isMatch(r.tokens[0], ["SEMI"])) {
+				if(_isMatch(r.tokens[0], ["NAME"])){ 
+					var tkn = r.tokens.shift();
+					if(_isMatch(r.tokens[0], ["COMMA"])) {
 						r.tokens.shift();
 						//alert("@record");
+						r.in = {caller : "record", id : tkn.value}; //set the caller and key attributes
+						var item = new CiteItem(tkn.value);
+						r.db.add([item]);
+						console.log(r.db.db());
 						r = _fields(r);
 						if(_isMatch(r.tokens[0], ["RBRACE"])){
 							r.tokens.shift();
@@ -238,7 +244,7 @@
 						}
 					}
 					else {
-						throw new RecognitionException(r.tokens[0],["SEMI"]);
+						throw new RecognitionException(r.tokens[0],["COMMA"]);
 					}
 				}
 				else {
@@ -255,32 +261,49 @@
 		return r;
 	}
 	
+	/*
+	// IN: caller, id
+	*/
 	function _fields(input){
+		_assertAttributes(input.in, ["caller", "id"], "_fields");
 		var r = input;
 		//alert("@fields");
 		if(_isMatch(r.tokens[0],["NAME"])){
 			r = _field(r);
+			if(r.in.caller == "record"){
+				var field_name = r.out.field.k.toLowerCase();
+				var citeitem = r.db.get([r.in.id])[0];
+				citeitem.setNormalized(field_name, r.out.field.v);
+			}
 			r = _fields(r);
 		}
 		
 		return r;
 	}
 	
+	/*
+	// IN: caller
+	// OUT: field
+	*/
 	function _field(input) {
+		_assertAttributes(input.in, ["caller"], "_field");
 		var r = input;
+		var tkn, key;
 		if(_isMatch(r.tokens[0],["NAME"])){
-			r.tokens.shift();
+			tkn = r.tokens.shift();
 			if(_isMatch(r.tokens[0],["EQUAL"])){
 				r.tokens.shift();
 				//alert("@field");
+				r.in["key"] = tkn.value;
 				r = _value(r);
-				if(_isMatch(r.tokens[0], ["SEMI", "RBRACE"])) {
-					if(_isMatch(r.tokens[0], ["SEMI"])){
+				
+				if(_isMatch(r.tokens[0], ["COMMA", "RBRACE"])) {
+					if(_isMatch(r.tokens[0], ["COMMA"])){
 							r.tokens.shift();
 					}
 				}
 				else {
-					throw new RecognitionException(r.tokens[0],["SEMI","RBRACE"]);
+					throw new RecognitionException(r.tokens[0],["COMMA","RBRACE"]);
 				}
 			}
 			else {
@@ -290,11 +313,20 @@
 		else {
 			throw new RecognitionException(r.tokens[0],["NAME"]);
 		}
+		_assertAttributes(r.out, ["field"], "_field");
 		return r;
 	}
 	
+	
+	/*
+	// IN: caller
+	// OUT: field
+	*/
 	function _value(input) {
+		_assertAttributes(input.in, ["key"], "_value");
 		var r = input;
+		var all_text = "";
+		var key = r.in.key;
 		//alert("@value");
 		if(_isMatch(r.tokens[0], ["LBRACE"])){
 			r.tokens.shift();
@@ -303,22 +335,31 @@
 				open_braces += _isMatch(r.tokens[0], ["LBRACE"]) ? 1 : (_isMatch(r.tokens[0], ["RBRACE"])? -1 : 0 ) ;
 				var tkn = r.tokens.shift();
 				//catch the text inside braces...
-				//all_text += tkn.type=="GARBAGE" ? tkn.value : " "+tkn.value; 
+				all_text += tkn.type=="GARBAGE" ? tkn.value : " "+tkn.value; 
 			}
+			all_text = all_text.substring(0,all_text.length-1);
 		}
 		else {
 			if(_isMatch(r.tokens[0], ["STRING"])) {
 				var tkn = r.tokens.shift();
+				all_text = tkn.value.substring( 1 , tkn.value.length - 1 );
 			}
 			else {
 				if(_isMatch(r.tokens[0], ["NAME"])) {
 					var tkn = r.tokens.shift();
+					all_text = tkn.value;
 				}
 				else {
 					throw new RecognitionException(r.tokens[0],["LBRACE", "STRING", "NAME"]);
 				}
 			}
 		}
+		var kv = {};
+		kv["k"] = key;
+		kv["v"] = all_text;
+		r.out["field"] = kv ;
+		console.log(r.out.field.k + ":" + r.out.field.v );
+		_assertAttributes(r.out, ["field"], "_value");
 		return r;
 	}
 	
@@ -326,6 +367,28 @@
 	function _isMatch(tkn, followset) {
 		return followset.indexOf(tkn.type) != -1 ;
 	}
+	
+	
+	function _assertAttributes(io, attributes, call){	
+		var l = attributes.length;
+		var i = 0;
+		for( ; i < l ; i++ ) {
+			if(!io.hasOwnProperty(attributes[i]) || ( 
+							io.hasOwnProperty(attributes[i]) &&  (
+										io[attributes[i]] == "" || 
+										io[attributes[i]] == null
+								)  
+					) 
+			){
+				throw new AttributeUndefinedException(call,attributes[i]);
+			}
+		}
+	}
+	
+	
+	
+	
+	
 	
 	
 	
@@ -363,20 +426,23 @@
 		},
 		
 		add: function(items) {
-			/*var key;
-			if(citeitem.hasOwnProperty("id")){
-				key = citeitem.id;
-			} 
-			else {
-				console.log("NO KEY ON THE ENTRY TO ADD"); //the text shall not be hardcoded here...
+			var i=0, l=items.length;
+			for(; i<l ; i++){
+				var citeitem = items[i]
+				if(citeitem.hasOwnProperty("id")){
+					key = citeitem.id;
+				} 
+				else {
+					console.log("NO KEY ON THE ENTRY TO ADD"); //the text shall not be hardcoded here...
+				}
+				if(! this.db().hasOwnProperty(key)){
+					this.db()[key] = citeitem; 
+				}
+				else {
+					console.log("REPEATED KEY: " + key);
+				}
 			}
-			if(! this.db().hasOwnProperty(key)){
-				this.db()[key] = citeitem; 
-			}
-			else {
-				console.log("REPEATED KEY: " + key);
-			}*/
-			
+
 			return this;
 		}, 
 		
@@ -385,12 +451,22 @@
 		},
 		
 		get : function(item_keys){
-			//return this;
+			var items = [];
+			var i = 0;
+			var l = item_keys.length;
+			var _db = this.db();	
+			for(; i<l ; i++) {
+				var ith_key = item_keys[i];
+				if(_db.hasOwnProperty(ith_key)){
+					items.push(_db[ith_key]);
+				}
+			}
+			return items;
 		},
 		
 		getIf : function(){
 			//return this;
-		},
+		}
 	}
 	
 	
@@ -421,9 +497,9 @@
 	}
 	
 	
-	function CiteItem() {
+	function CiteItem(item_key) {
 		this.entry = "";		//The type of the entry
-		this.id = "";			//The key of the 
+		this.id = item_key;			//The key of the 
 		this.author = [];		//The name(s) of the author(s) (in the case of more than one author, separated by and)
 		this.title = "";		//The title of the work
 		this.address = ""; 		//Publisher's address (usually just the city, but can be the full address for lesser-known publishers)
@@ -477,6 +553,40 @@
 		other : function(key) {
 			var _key = key.toLowerCase();
 			return (this._other.hasOwnProperty(_key)) ? this._other[_key] : "" ; 
+		},
+		
+		setNormalized : function (key, value){
+			key = key.toLowerCase();
+			value = value.trim();
+			switch(key) {
+				case "title" : {
+				
+				}; break ;
+			
+				case "author" : {
+				
+				}; break ;
+			
+				case "pages" : {
+				
+				} ; break ;
+			
+				case "month" : {
+					value = months.hasOwnProperty(value) ? months[value] : value ;
+				} ; break ;
+			
+				case "month" : {
+				
+				} ; break ;
+				
+				default : break ;
+			}
+			if(this.hasOwnProperty(key)) {
+				this[key] = value;
+			}
+			else {
+				this._other = value;
+			}
 		}
 		
 		//formattings...
@@ -515,12 +625,12 @@ console.log(C);
 
 
 var T = new TexCite();
-T.db.add({"id":"oliv2012"});
+T.db.add([{"id":"oliv2012"}]);
 console.log(T);
 console.log(T.db);
 
-var x = T.db;
-x.add()
+//var x = T.db;
+//x.add();
 
 console.log(T.parse(
 "@comment this is a comment\n" +
@@ -528,7 +638,7 @@ console.log(T.parse(
 "@preamble{this is a preamble with '{' and '}' braces inside }\n\n" +
 
 "@incollection{oliveira2013,\n\n" +
-" title   = {Reconfiguration Mechanisms for Service Coordination}, \n" +
+" title   = {Reconfiguration Mechanisms for {Reo} Service Coordination}, \n" +
 " author  = {Oliveira, N. and Barbosa, L. S.}, \n" +
 "    booktitle 	= {Web Services and Formal Methods},\n"  +
 "    publisher 	= {Springer},\n" +
