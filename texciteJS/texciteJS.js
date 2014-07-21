@@ -25,7 +25,6 @@
 			//console.log(tokens);
 			try{
 					var res = _bibtex( { db:this.db, 'tokens': tokens, 'in': {}, 'out': {} });
-					this.db = res.db;
 					return tokens.length==0 ? 'SUCCESS' : 'FAIL see logs';
 			}
 			catch(ex){
@@ -184,7 +183,7 @@
 		var r = input;
 		if(_isMatch(r.tokens[0],['LBRACE'])){
 			r.tokens.shift();
-			r.in = {caller:'string', id:'$'}; //set the caller attribute
+			r.in = {caller:'string', id:'_'}; //set the caller attribute
 			r = _fields(r);
 			if(_isMatch(r.tokens[0], ['RBRACE'])){
 				r.tokens.shift();
@@ -269,6 +268,11 @@
 				var field_name = r.out.field.k.toLowerCase();
 				var citeitem = r.db.get([r.in.id])[0];
 				citeitem.setNormalized(field_name, r.out.field.v);
+			}
+			else {
+				if(r.in.caller == 'string') {
+					r.db.define([r.out.field]);
+				}
 			}
 			r = _fields(r);
 		}
@@ -396,7 +400,7 @@
 		var _strings = {};
 		var _entries = {};
 		
-		this.dfs = function() {
+		this.df = function() {
 			return _strings;
 		}
 		this.db = function(){
@@ -411,18 +415,37 @@
 	/********** PROTECTED API *************/
 	TexCiteDB.fn = TexCiteDB.prototype = {
 		
-		def : function(strings) {
+		define : function(strings) {
+			var i=0, l=strings.length;
+			for(;i<l;i++){
+				var str = strings[i] ;
+				var key = str.k.trim();
+				if(!this.df().hasOwnProperty(key)){
+					this.df()[key] = str.v.trim();
+				}
+				else {
+					console.log('REPEATED STRING: ' + key);
+				}
+			}
+			
 			return this;
 		},
 		
-		undef : function(string_keys) {
+		undefine : function(string_keys) {
+			var i=0, l=string_keys.length;
+			for(;i<l;i++){
+				var str_k = string_keys[i] ;
+				if(this.df().hasOwnProperty(str_k)){
+					delete this.df()[str_k] ;
+				}
+			}
 			return this;
 		},
 		
 		add: function(items) {
 			var i=0, l=items.length;
 			for(; i<l ; i++){
-				var citeitem = items[i]
+				var citeitem = items[i] ;
 				if(citeitem.hasOwnProperty('id')){
 					key = citeitem.id;
 				} 
@@ -441,6 +464,14 @@
 		}, 
 		
 		remove : function(item_keys){
+			
+			var i=0, l=item_keys.length;
+			for(;i<l;i++){
+				var item_k = item_keys[i] ;
+				if(this.db().hasOwnProperty(item_k)){
+					delete this.db[item_k] ;
+				}
+			}			
 			return this;
 		},
 		
@@ -493,7 +524,7 @@
 	
 	function CiteItem(item_key) {
 		this.entry = '';		//The type of the entry
-		this.id = item_key;			//The key of the 
+		this.id = item_key;		//The key of the entry
 		this.author = [];		//The name(s) of the author(s) (in the case of more than one author, separated by and)
 		this.title = '';		//The title of the work
 		this.abstract = ''; 	//The abstract of the publication
@@ -640,6 +671,7 @@ console.log(T.db);
 console.log(T.parse(
 '@comment this is a comment\n' +
 '@string {LNCS = {Lecture Notes in Computer Science}}\n' +
+'@string {SCP = "Science of Computer Programming"}\n' +
 '@preamble{this is a preamble with "{" and "}" braces inside }\n\n' +
 
 '@incollection{oliveira2013,\n\n' +
@@ -687,3 +719,4 @@ console.log(T.parse(
 '}'
 
 ));
+
