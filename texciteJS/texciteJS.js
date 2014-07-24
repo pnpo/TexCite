@@ -1,3 +1,5 @@
+"use strict";
+
 ;(function(exporting, undefined) {
 	
 	var options = {};
@@ -10,7 +12,6 @@
 		this.db = new TexCiteDB() ;		
 	}
 	exporting.TexCite = TexCite; //export constructor
-
 	
 	/*********** PUBLIC API **************/
 	
@@ -76,6 +77,7 @@
 		var _content = content;
 		var line = 0;
 		var new_line_pos=0;
+		var re;
 		while(_content != ''){
 			var m = new Array;
 			for(re in regex){
@@ -443,7 +445,7 @@
 		},
 		
 		add: function(items) {
-			var i=0, l=items.length;
+			var i=0, l=items.length, key;
 			for(; i<l ; i++){
 				var citeitem = items[i] ;
 				if(citeitem.hasOwnProperty('id')){
@@ -497,7 +499,7 @@
 	
 	
 
-})(window); //pass the window as the global context...
+})(typeof exports === 'undefined' ?  window : exports); //pass the window as the global context...
 
 
 
@@ -661,7 +663,7 @@
 		
 	}
 	
-})(window);
+})(typeof exports === 'undefined' ? window : exports);
 
 
 var T = new TexCite();
