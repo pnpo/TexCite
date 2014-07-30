@@ -396,7 +396,7 @@
 	
 	
 	
-	/****** BIBLIOGRALHY DB ********/
+	/****** BIBLIOGRAPHY DB ********/
 	
 	function TexCiteDB(){
 		var _strings = {};
@@ -491,9 +491,9 @@
 			return items;
 		},
 		
-		getIf : function(){
+		//getIf : function(){
 			//return this;
-		}
+		//}
 	}
 	
 	
@@ -609,7 +609,7 @@
 							value += splits[i].replace(/[{}]/g,'').trim();
 						}
 						else {
-							//any other part of the tile is lowered
+							//any other part of the title is lowered
 							value += splits[i].toLowerCase();
 						}
 					}
