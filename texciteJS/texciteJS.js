@@ -2,14 +2,19 @@
 
 ;(function(exporting, undefined) {
 	
-	var options = {};
+	var defaults = {
+		validate : true
+	};
 	
 	
 	/*
 	* Constructor
 	*/
-	function TexCite() {
-		this.db = new TexCiteDB() ;		
+	function TexCite(options) {
+		options = options || {};
+		this.settings = _configure(defaults,options);
+		this.db = new TexCiteDB() ;
+		
 	}
 	exporting.TexCite = TexCite; //export constructor
 	
@@ -26,15 +31,56 @@
 			//console.log(tokens);
 			try{
 					var res = _bibtex( { db:this.db, 'tokens': tokens, 'in': {}, 'out': {} });
+					if(this.settings.validate===true){
+						this.validate();
+					}
 					return tokens.length==0 ? 'SUCCESS' : 'FAIL see logs';
 			}
 			catch(ex){
 				console.log(ex);
 			}
+		},
+		
+		validate : function() {
+			var res = true;
+			var db = this.db.db();
+			var entry;
+			for(entry in db) {
+				res = res && db[entry].validate();
+			}
+			
+			return res;
 		}
 	}
 	
 	/************ PRIVATE API ************/
+	
+	
+	
+	/*
+	This is a basic JQuery $.expand wannabe sister... It  simply merges two objects, 
+	without changing the first... well only if the first has immutable keys.
+	The merge only replaces the value the keys that exist on the firs object.
+	
+	@param def {OBJECT} the default object
+	@param opt {OBJECT} the new object to replace the default one;
+	@return {OBJECT} containing all the keys of the default object, with the value of
+	of these keys on the new object if they exist... otherwise the vlaue of the keys 
+	are the same as those coming from the default object.
+	*/
+	function _configure(def,opt) {
+		var res = {};
+		var k;
+		for(k in def) {
+			res[k] = def[k];
+		}
+		for(k in opt) {
+			if(res.hasOwnProperty(k)){
+				res[k] = opt[k];
+			}
+		}
+		return res;
+	}
 	
 	
 	
@@ -220,16 +266,16 @@
 	function _record(input) {
 		var r = input;
 		if(_isMatch(r.tokens[0], ['NAME'])){
-			r.tokens.shift();
+			var tkn1 = r.tokens.shift();
 			if(_isMatch(r.tokens[0], ['LBRACE'])){
 				r.tokens.shift();
 				if(_isMatch(r.tokens[0], ['NAME'])){ 
-					var tkn = r.tokens.shift();
+					var tkn2 = r.tokens.shift();
 					if(_isMatch(r.tokens[0], ['COMMA'])) {
 						r.tokens.shift();
 						//alert('@record');
-						r.in = {caller : 'record', id : tkn.value}; //set the caller and key attributes
-						var item = new CiteItem(tkn.value);
+						r.in = {caller : 'record', id : tkn2.value}; //set the caller and key attributes
+						var item = new CiteItem(tkn1.value, tkn2.value);
 						r.db.add([item]);
 						r = _fields(r);
 						if(_isMatch(r.tokens[0], ['RBRACE'])){
@@ -582,8 +628,8 @@
 	}
 	
 	
-	function CiteItem(item_key) {
-		this.entry = '';		//The type of the entry
+	function CiteItem(entry_type, item_key) {
+		this.entry = entry_type.toLowerCase();		//The type of the entry
 		this.id = item_key;		//The key of the entry
 		this.author = [];		//The name(s) of the author(s) (in the case of more than one author, separated by and)
 		this.title = '';		//The title of the work
@@ -715,9 +761,81 @@
 			else {
 				this._other[key] = value;
 			}
+		},
+		
+		//validate
+		validate : function () {
+			var entry_type = this.entry;
+			var res = true;
+			if(entry_structure.hasOwnProperty(entry_type)){
+				var required_fields = entry_structure[entry_type].required;
+				var i = 0;
+				var field, proc;
+				for(; i<required_fields.length ; i++){
+					field = required_fields[i];
+					proc = 'normal';
+					if(field.indexOf('|') != -1){
+						proc = '|';
+						field = field.split('|');
+					} else {
+						if(field.indexOf('+') != -1) {
+							proc = '+'
+							field = field.split('+');
+						}
+					}
+					
+					switch(proc) {
+						case '|'	: ;
+						case '+'	: {
+							if(! _isAssignedValidValue(this,field[0]) && !_isAssignedValidValue(this,field[1])){
+								console.log('Field: ' + field[0] + ' was not provided for entry ' + this.id);
+								res = res && false;
+							}
+						} ; break ;
+						default 	: {
+							if(! _isAssignedValidValue(this,field) ){
+								console.log('Field: ' + field + ' was not provided for entry ' + this.id);
+								res = res && false;
+							}
+						} ;	
+					}
+					
+				}
+			}
+			return res;
 		}
 		
-		//formattings...
+		//render...
+		
+	}
+	
+	
+	// private methods
+	/**
+	* @param field {string} the field to see if it has a valid value 
+	* @return {boolean} expressin whether the 
+	*/
+	function _isAssignedValidValue(item,field) {
+		var res = false;
+		if(item.hasOwnProperty(field)){		
+			switch(field) {
+				case 'author' 	: ;
+				case 'keywords' 	: ;
+				case 'editor' : {
+					res = item[field].length > 0 ? true : false
+				} ; break ;
+				
+				case 'pages' : {
+					res = item.pages.start !== '' || item.pages.end !== '' ? true : false; 
+				} ; break ;
+			
+				default : {
+					res = item[field] !== '' ? true : false;
+				}
+			}
+		}
+		
+		return res;
 		
 	}
 	
@@ -776,7 +894,26 @@ console.log(T.parse(
     'url = {http://dx.doi.org/10.1016/j.jss.2012.07.052},\n' +
     'volume = {85},\n' +
     'year = {2012},\n' +
-'}'
+'} \n \n \n' +
+
+'@inbook{Val87a, \n' +
+    'author = "José M. Valença", \n' +
+    'title = "Algorítmos", \n' +
+    //'chapter = 1, \n' +
+    //'pages = {10--40}, \n' +
+    'volume=10, \n' +
+    'number=5, \n' +
+    'series={A SERIES}, \n' +
+    'year = 1987, \n' +
+    'month = Oct, \n' +
+    'edition=5, \n' +
+    'publisher = {gdcc}, \n' +
+    'address = {um}, \n' +
+    'type={section}, \n' +
+    'annote = "algoritmos, espec formal" \n' +
+    '}'
 
 ));
+
+//T.validate();
 
