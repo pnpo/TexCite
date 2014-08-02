@@ -348,7 +348,7 @@
 			else {
 				if(_isMatch(r.tokens[0], ['NAME'])) {
 					var tkn = r.tokens.shift();
-					all_text = tkn.value;
+					all_text = tkn.value; //this should get the value of a predefined string
 				}
 				else {
 					throw new RecognitionException(r.tokens[0],['LBRACE', 'STRING', 'NAME']);
@@ -521,6 +521,64 @@
 		oct : 'October',
 		nov : 'November',
 		dec : 'December'
+	}
+	
+	//notation:
+	// a|b  means either a or b, with a being preferred when both a and b exist
+	// a+b means at least on of them should exist
+	var entry_structure = {
+		article : {
+			required: ['author', 'title', 'journal', 'year'], 
+			optional: ['volume', 'number', 'pages', 'month', 'note']
+		},
+		book	: {
+			required: ['author|editor', 'title', 'publisher', 'year'], 
+			optional: ['volume|number', 'series', 'address', 'edition', 'month', 'note' ]
+		},
+		booklet	: {
+			required: ['title'],
+			optional: ['author', 'howpublished', 'address', 'month', 'year', 'note']
+		},
+		inbook : {
+			required: ['author|editor', 'title', 'chapter+pages', 'publisher', 'year'],
+			optional: ['volume|number', 'series', 'type', 'address', 'edition', 'month', 'note']
+		},
+		incollection : {
+			required : ['author', 'title', 'booktitle', 'publisher', 'year'],
+			optional : ['editor', 'volume|number', 'series', 'type', 'chapter', 'pages', 'address', 'edition', 'month', 'note'],
+		},
+		inproceedings: {
+			required : ['author', 'title', 'booktitle', 'year'],
+			optional : ['editor', 'volume|number', 'series', 'pages', 'address', 'month', 'organization', 'publisher', 'note']
+		},
+		manual : {
+			required : ['title'],
+			optional : ['author', 'organization', 'address', 'edition', 'month', 'year', 'note'] 
+		},
+		masterthesis: {
+			required : ['author', 'title', 'school', 'year'],
+			optional : ['type', 'address', 'month', 'note']
+		},
+		misc	: {
+			required : [],
+			optional : ['author', 'title', 'howpublished', 'month', 'year', 'note']
+		},
+		phdthesis : {	
+			required : ['author', 'title', 'school', 'year'],
+			optional : ['type', 'address', 'month', 'note']
+		},
+		proceedings : {
+				required : ['title', 'year'],
+				optional : ['editor', 'volume|number', 'series', 'address', 'month', 'publisher', 'organization', 'note']
+		},
+		techreport : {
+				required : ['author', 'title', 'institution', 'year'],
+				optional : ['type', 'number', 'address', 'month', 'note']
+		},
+		unpublished : {
+				required : ['author', 'title', 'note'],
+				optional : ['month', 'year']
+		}
 	}
 	
 	
@@ -717,7 +775,7 @@ console.log(T.parse(
     'title = {A development framework and methodology for self-adapting applications in ubiquitous computing environments},\n' +
     'url = {http://dx.doi.org/10.1016/j.jss.2012.07.052},\n' +
     'volume = {85},\n' +
-    'year = {2012}\n' +
+    'year = {2012},\n' +
 '}'
 
 ));
