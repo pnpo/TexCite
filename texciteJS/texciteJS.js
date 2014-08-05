@@ -1,9 +1,9 @@
-"use strict";
+'use strict';
 
 ;(function(exporting, undefined) {
 	
 	var defaults = {
-		validate : true
+		validate : true,
 	};
 	
 	
@@ -47,9 +47,32 @@
 			var entry;
 			for(entry in db) {
 				res = res && db[entry].validate();
-			}
-			
+			}		
 			return res;
+		},
+		
+		render : function() {
+			var res = '';
+			var db = this.db.db();
+			var entry;
+			for(entry in db) {
+				res +=  db[entry].render();
+			}		
+			return res;
+		},
+		
+		crender : function(func) {
+			var res = '';
+			if(CiteItem.fn.hasOwnProperty(func)){
+				var func = CiteItem.fn[func];
+				var db = this.db.db();
+				var entry;
+				for(entry in db) {
+					res +=  func.call(db[entry]);
+				}		
+
+			}
+			return res;			
 		}
 	}
 	
@@ -606,7 +629,7 @@
 			optional : ['type', 'address', 'month', 'note']
 		},
 		misc	: {
-			required : [],
+			required : ['title'],
 			optional : ['author', 'title', 'howpublished', 'month', 'year', 'note']
 		},
 		phdthesis : {	
@@ -700,6 +723,8 @@
 			value = value.trim();
 			switch(key) {
 				case 'title' : {
+					//Get rid of undesired line breaks 
+					value = value.replace(/\n+/, '');
 					//split the title string by {...} but keeping the match in the array of splits
 					var re = /(\{[^}]*\})/;
 					var splits = value.split(re);
@@ -803,12 +828,61 @@
 				}
 			}
 			return res;
+		},
+		
+		/**
+		This function assumes that the item was validated before!
+		@return {string }an HTML string containing the bibtex rendering of this entry. 
+			This rendering is exactly the output of the plain bibliography 
+			style of bibtex. For a customising approach, just add a new method 
+			to CiteItem.fn.
+		**/
+		render: function(){
+			var output ='';
+			output +=		'<div class="citeitem" id="'+ this.id +'">';
+			//rendering author (not all entries have it)
+			if(_isAssignedValidValue(this,'author')) {
+				output += 		'<span>' + _printAuthors(this.author) + '. </span>';
+			}
+			else {
+				if(_isAssignedValidValue(this,'editor') && (this.entry=='book' || this.entry=='inbook')) {
+					output += 		'<span>' + _printAuthors(this.editor) + '. </span>';
+				}
+			}
+			//rendering the title
+			output +=			'<span>' + _printTitle(this) + '. </span>' ;
+			//rendering the booktitle / type of publication
+			output += 			'<span>' ;
+			switch(this.entry){
+				case 'masterthesis' : {
+					output += _isAssignedValidValue(this,'type') ? this.type + '.' : 'Master thesis, '; 
+				} ; break;
+				case 'phdthesis' : {
+					output += _isAssignedValidValue(this,'type') ? this.type + '.' : 'PhD thesis, ' ;
+				} ; break;
+				case 'techreport': {
+					output += _isAssignedValidValue(this,'type') ? this.type + '. ' : 'Technical report, ' ; 
+				} ; break;
+				case 'article' : {
+					output += 'In <i>' + this.journal +'</i>';
+				} break;
+				case 'incollection' : ;
+				case 'inproceedings': {
+					output += 'In ' ;
+					output += _isAssignedValidValue(this,'editor') ? 
+									_printAuthors(this.editor) + ', editor' + (this.editor.length > 1 ? 's, ' : ', ') 
+									: '';
+					output += '<i>'+this.booktitle+', </i>' 
+				}; break;
+				default : ;
+			}
+			output += 			'</span>' ;
+			output +=		'</div>';
+			
+			return output;
 		}
 		
-		//render...
-		
 	}
-	
 	
 	// private methods
 	/**
@@ -835,9 +909,41 @@
 			}
 		}
 		
-		return res;
-		
+		return res;	
 	}
+	
+	
+	
+	function _printAuthors(names) {
+		var i = 0, len = names.length;
+		var res = '';
+		if(len > 1) {
+			var names_clone = names.slice(0); 
+			names_clone[len-1] = 'and ' + names_clone[len-1];
+			res = names_clone.join(', ');
+		}
+		else {
+			res = names[0];
+		}
+		return res;
+	}
+	
+	function _printTitle(item){
+		var res = '';
+		switch(item.entry) {
+			case 'book' : ;
+			case 'phdthesis' : ;
+			case 'manual' : ;
+			case 'proceedings' : {
+				res = '<i>' + item.title + '</i>';
+			}; break;
+			default : {
+				res = item.title;
+			}
+		}
+		return res;
+	}
+	
 	
 })(typeof exports === 'undefined' ? window : exports);
 
@@ -860,6 +966,7 @@ console.log(T.parse(
 '    series   = {LNCS},\n'+
 '	volume   = {7843},\n' +
 '    year   = {2013},\n' +
+'	EDitor = {Rui Matias},' + 
 '	 keywords = {music, self-adaptation, ubiquitous\_computing},\n' +
 '    pages   = {134--149},\n' + 
 '}\n\n\n ' +
@@ -898,8 +1005,9 @@ console.log(T.parse(
 
 '@inbook{Val87a, \n' +
     'author = "José M. Valença", \n' +
-    'title = "Algorítmos", \n' +
-    //'chapter = 1, \n' +
+	//'	EDitor = {Rui Matias},' + 
+    'title = "Algorítmos\n e outras coisas", \n' +
+    'chapter = 1, \n' +
     //'pages = {10--40}, \n' +
     'volume=10, \n' +
     'number=5, \n' +
@@ -915,5 +1023,5 @@ console.log(T.parse(
 
 ));
 
-//T.validate();
 
+document.write(T.render());
